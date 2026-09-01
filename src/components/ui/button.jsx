@@ -2,13 +2,15 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 const variants = {
+  // 淺色底用
   default: "bg-slate-900 text-white hover:bg-slate-800",
   outline: "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50",
   ghost: "text-slate-900 hover:bg-slate-100",
-  // 深色背景專用
+  // 深色底用
   darkOutline:
     "border border-white/25 bg-white/5 text-white hover:bg-white/15 hover:border-white/40",
   darkGhost: "text-slate-200 hover:bg-white/10 hover:text-white",
+  darkSolid: "bg-white text-slate-900 hover:bg-slate-200",
 };
 
 const sizes = {
