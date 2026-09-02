@@ -122,7 +122,6 @@ export const V = {
   41: { latest: "792萬人", period: "2025 出生", freq: "annual", data: [{ p: "2021", v: 1062 }, { p: "2022", v: 956 }, { p: "2023", v: 902 }, { p: "2024", v: 954 }, { p: "2025", v: 792 }], noteZh: "全年出生人口（萬人）。結婚對數需由民政部另行核對。2025年降幅明顯，已標警示。", noteEn: "Annual births (10k). Marriages need MCA series. 2025 drop flagged as anomaly.", noteJa: "年間出生数（万人）。婚姻件数は民政部で別途確認。2025年の急減を警告表示。", source: "國家統計局統計公報", url: gongbaoUrl },
 };
 
-
 // 從期間標籤取出年份，取不到回傳 null
 const yearOfLabel = (label) => {
   const m = String(label).match(/(19|20)\d{2}/);
@@ -185,10 +184,62 @@ function mergeWithWorldBank(id, officialData) {
   return { data: combined, merged: true, wbMeta: wb };
 }
  
+// 世銀指標頁網址（可點擊查看原始資料與定義）
+const wbUrl = (code) => `https://data.worldbank.org/indicator/${code}`;
+ 
+// 數值加上單位。"% of GDP" 這類只取百分號，其餘直接接在後面。
+const fmtValue = (v, unit) => {
+  if (unit == null || unit === "") return String(v);
+  if (unit.trim().startsWith("%")) return `${v}%`;
+  return `${v}${unit}`;
+};
+ 
+/**
+ * 官方沒有資料、只有世銀序列的指標，自動補齊卡片欄位
+ * （最新值、期間、來源名稱、來源連結、三語備註）。
+ * 官方已有值的指標不會被覆蓋。
+ */
+function deriveFromWorldBank(wb) {
+  if (!wb?.data?.length) return {};
+  const last = wb.data[wb.data.length - 1];
+  const cross = wb.kind === "cross-country";
+ 
+  const orig = wb.origin ? `，原始來源：${wb.origin}` : "";
+  const origEn = wb.origin ? `, originally from ${wb.origin}` : "";
+  const origJa = wb.origin ? `、原典：${wb.origin}` : "";
+  const originNote = {
+    zh: `此為國際機構估算，非中國官方公布值。世界銀行資料${orig}。`,
+    en: `International estimate, not an official Chinese figure. World Bank data${origEn}.`,
+    ja: `国際機関の推計であり、中国公式値ではありません。世界銀行データ${origJa}。`,
+  };
+  const caliberNote = {
+    zh: "⚠️口徑與中國官方定義不同，不可直接比較。",
+    en: "⚠️Caliber differs from the official Chinese definition; not directly comparable.",
+    ja: "⚠️定義が中国公式と異なるため直接比較は不可。",
+  };
+ 
+  return {
+    latest: cross
+      ? `${wb.data.length} 國 / ${wb.snapshotYear}`
+      : fmtValue(last.v, wb.unit),
+    period: cross
+      ? `${wb.snapshotYear} 各國比較`
+      : `${last.p}（世銀估算）`,
+    source: `World Bank · ${wb.label?.zh || wb.code}`,
+    url: wbUrl(wb.code),
+    noteZh: originNote.zh + (wb.caliber ? caliberNote.zh : ""),
+    noteEn: originNote.en + (wb.caliber ? " " + caliberNote.en : ""),
+    noteJa: originNote.ja + (wb.caliber ? caliberNote.ja : ""),
+  };
+}
+ 
 export const indicators = names.map((n, i) => {
   const id = i + 1;
   const v = V[id] || {};
   const m = mergeWithWorldBank(id, v.data);
+ 
+  // 官方沒有值時，用世銀資料補齊卡片欄位（官方值一律優先，不會被覆蓋）
+  const derived = m.wbOnly ? deriveFromWorldBank(m.wbMeta) : {};
  
   return {
     id,
@@ -198,6 +249,7 @@ export const indicators = names.map((n, i) => {
     category: catFor(id),
     chart: chartTypes[i],
     freq: v.freq || freqMap[id],
+    ...derived,
     ...v,
     data: m.data,
     // 來源標記，供 UI 顯示提示
