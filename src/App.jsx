@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, ExternalLink, Languages, BarChart3, Database, X, Info, Filter,
-  Download, AlertTriangle, RefreshCw, CalendarClock,
+  Download, AlertTriangle, RefreshCw, CalendarClock, History,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,15 +17,58 @@ import {
   indicators, categories, sourcePortals, freqMeta, hasAnomaly,
 } from "./data.js";
 
-function MiniChart({ item, big = false }) {
-  if (!item.data)
+// --------------------------------------------------------------------------
+// 期間裁切
+// --------------------------------------------------------------------------
+
+// 從期間標籤取出年份："2023" / "2025-08" / "2025Q3" → 2023 / 2025 / 2025
+// 取不到（例如「收入 Rev」「國債」）→ null
+const yearOf = (label) => {
+  const m = String(label).match(/(19|20)\d{2}/);
+  return m ? Number(m[0]) : null;
+};
+
+// 這組資料是不是時間序列？標籤全都解析得出年份才算。
+// #28（收入／支出）、#32（國債／地方／隱性）、#35（新增／再融資）這類
+// 結構拆分不是時間序列，不能裁切。
+export const isTimeSeries = (data) =>
+  Array.isArray(data) && data.length > 0 && data.every((d) => yearOf(d.p) !== null);
+
+// 回傳資料實際涵蓋的年份範圍，非時間序列回傳 null
+export const coverageOf = (data) => {
+  if (!isTimeSeries(data)) return null;
+  const ys = data.map((d) => yearOf(d.p));
+  return { from: Math.min(...ys), to: Math.max(...ys), span: Math.max(...ys) - Math.min(...ys) + 1 };
+};
+
+// 依年份區間裁切
+function sliceByYears(item, years) {
+  const data = item?.data;
+  if (!data) return data;
+  if (years === "all") return data;
+  if (item.chart === "pie") return data;   // 圓餅圖是占比，不裁切
+  if (!isTimeSeries(data)) return data;    // 結構拆分，不裁切
+
+  const ys = data.map((d) => yearOf(d.p));
+  const cutoff = Math.max(...ys) - years + 1;
+  const out = data.filter((_, i) => ys[i] >= cutoff);
+  return out.length >= 1 ? out : data;
+}
+
+// --------------------------------------------------------------------------
+
+function MiniChart({ item, big = false, years = "all" }) {
+  const data = sliceByYears(item, years);
+
+  if (!data)
     return (
       <div className="h-full min-h-32 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed">
         <Database className="w-6 h-6 mb-2" />
         <span className="text-xs px-2 text-center">待官方或國際機構資料 / Awaiting official or intl. data</span>
       </div>
     );
-  const common = { data: item.data, margin: { top: 8, right: 8, left: big ? 4 : -20, bottom: 0 } };
+
+  const common = { data, margin: { top: 8, right: 8, left: big ? 4 : -20, bottom: 0 } };
   const axes = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -50,8 +93,8 @@ function MiniChart({ item, big = false }) {
     return (
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={item.data} dataKey="v" nameKey="p" outerRadius={big ? 95 : 55} label>
-            {item.data.map((_, idx) => (
+          <Pie data={data} dataKey="v" nameKey="p" outerRadius={big ? 95 : 55} label>
+            {data.map((_, idx) => (
               <Cell key={idx} fill={[item.category.color, "#94a3b8", "#cbd5e1"][idx % 3]} />
             ))}
           </Pie>
@@ -71,6 +114,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("all");
   const [status, setStatus] = useState("all");
+  const [years, setYears] = useState(5);
   const [selected, setSelected] = useState(null);
   const [refreshed, setRefreshed] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,6 +137,14 @@ export default function App() {
       ),
     [search, cat, status, lang]
   );
+
+  // 目前篩選結果中，時間序列最長涵蓋幾年 —— 用來提示資料是否足以支撐所選區間
+  const maxSpan = useMemo(() => {
+    const spans = filtered.map((x) => coverageOf(x.data)?.span || 0);
+    return spans.length ? Math.max(...spans) : 0;
+  }, [filtered]);
+
+  const shortOfData = years !== "all" && maxSpan > 0 && maxSpan < years;
 
   const langLabel = lang === "zh" ? "繁體中文" : lang === "en" ? "English" : "日本語";
   const cycleLang = () => setLang(lang === "zh" ? "en" : lang === "en" ? "ja" : "zh");
@@ -176,7 +228,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-5 py-7">
         <Card className="border-0 shadow-sm mb-6">
           <CardContent className="p-4">
-            <div className="grid md:grid-cols-[1fr_180px_190px_auto] gap-3">
+            <div className="grid md:grid-cols-[1fr_170px_180px_160px_auto] gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("搜尋編號或指標", "Search number or indicator", "番号・指標を検索")} className="pl-9" />
@@ -199,8 +251,31 @@ export default function App() {
                   <SelectItem value="anomaly">{t("⚠ 異常波動", "⚠ Anomaly", "⚠ 異常変動")}</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={String(years)} onValueChange={(v) => setYears(v === "all" ? "all" : Number(v))}>
+                <SelectTrigger><History className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">{t("近 5 年", "Last 5 years", "直近 5 年")}</SelectItem>
+                  <SelectItem value="10">{t("近 10 年", "Last 10 years", "直近 10 年")}</SelectItem>
+                  <SelectItem value="15">{t("近 15 年", "Last 15 years", "直近 15 年")}</SelectItem>
+                  <SelectItem value="20">{t("近 20 年", "Last 20 years", "直近 20 年")}</SelectItem>
+                  <SelectItem value="all">{t("全部期間", "All periods", "全期間")}</SelectItem>
+                </SelectContent>
+              </Select>
               <Button onClick={exportCsv} variant="outline"><Download className="w-4 h-4 mr-2" />CSV</Button>
             </div>
+
+            {shortOfData && (
+              <div className="mt-3 flex gap-2 items-start text-[11px] leading-relaxed text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  {t(
+                    `目前 data.js 中最長的時間序列僅涵蓋 ${maxSpan} 年，短於所選的 ${years} 年區間，圖表顯示的是全部可用資料。補入更早年度後即會自動延長。`,
+                    `The longest series in data.js currently spans ${maxSpan} years, shorter than the selected ${years}-year window; charts show all available data. Add earlier years to extend automatically.`,
+                    `現在 data.js の最長系列は ${maxSpan} 年分で、選択した ${years} 年より短いため、利用可能な全データを表示しています。過去年度を追加すれば自動的に延長されます。`
+                  )}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -227,6 +302,7 @@ export default function App() {
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((item, idx) => {
             const anom = hasAnomaly(item.data);
+            const cov = coverageOf(item.data);
             return (
               <motion.button layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(idx * 0.012, 0.2) }} key={item.id} onClick={() => setSelected(item)} className="text-left">
                 <Card className={`h-full border-0 shadow-sm hover:shadow-lg transition rounded-2xl overflow-hidden ${anom ? "ring-1 ring-amber-300" : ""}`}>
@@ -242,7 +318,13 @@ export default function App() {
                     </div>
                     <h2 className="font-semibold text-base mt-4 leading-snug min-h-12">{nm(item)}</h2>
                     <p className="text-xs text-slate-400 mt-1 line-clamp-1">{lang === "zh" ? item.en : item.zh}</p>
-                    <div className="h-36 mt-4"><MiniChart item={item} /></div>
+                    <div className="h-36 mt-4"><MiniChart item={item} years={years} /></div>
+                    {cov && (
+                      <div className="mt-2 text-[10px] text-slate-400 flex items-center gap-1">
+                        <History className="w-3 h-3" />
+                        {t("資料涵蓋", "Data covers", "データ範囲")} {cov.from}–{cov.to}
+                      </div>
+                    )}
                     {anom && (
                       <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] leading-relaxed text-amber-900 flex gap-1.5">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -315,7 +397,25 @@ export default function App() {
                   <Button size="icon" variant="ghost" onClick={() => setSelected(null)}><X /></Button>
                 </div>
                 <div className="grid md:grid-cols-[1fr_220px] gap-6 mt-7">
-                  <div className="h-72 rounded-2xl bg-slate-50 p-3"><MiniChart item={selected} big /></div>
+                  <div>
+                    <div className="h-72 rounded-2xl bg-slate-50 p-3"><MiniChart item={selected} years={years} big /></div>
+                    {(() => {
+                      const cov = coverageOf(selected.data);
+                      if (!cov) return null;
+                      return (
+                        <div className="mt-2 text-xs text-slate-400 flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5" />
+                          {t(
+                            `資料涵蓋 ${cov.from}–${cov.to}（共 ${cov.span} 年）`,
+                            `Data covers ${cov.from}–${cov.to} (${cov.span} years)`,
+                            `データ範囲 ${cov.from}–${cov.to}（${cov.span} 年分）`
+                          )}
+                          {years !== "all" && cov.span < years &&
+                            ` — ${t("短於所選區間", "shorter than selected window", "選択期間より短い")}`}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="space-y-4">
                     <Card className="shadow-none">
                       <CardContent className="p-4">
