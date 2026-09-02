@@ -62,16 +62,16 @@ export function SelectTrigger({ className, children }) {
       aria-expanded={open}
       className={cn(
         "flex h-10 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm",
-        "border border-white/25 bg-white/5 text-white transition-colors",
-        "hover:bg-white/15 hover:border-white/40",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+        "border border-slate-300 bg-white text-slate-900 transition-colors",
+        "hover:bg-slate-50",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
         className
       )}
     >
-      {children}
+      <span className="flex items-center gap-1 truncate">{children}</span>
       <ChevronDown
         className={cn(
-          "w-4 h-4 shrink-0 opacity-60 transition-transform",
+          "w-4 h-4 shrink-0 opacity-50 transition-transform",
           open && "rotate-180"
         )}
       />
@@ -94,7 +94,7 @@ export function SelectContent({ children }) {
   return (
     <div
       role="listbox"
-      className="absolute z-50 mt-1 w-full min-w-[10rem] rounded-lg border border-white/15 bg-slate-900 text-slate-100 shadow-xl shadow-black/40 py-1 max-h-64 overflow-auto"
+      className="absolute z-50 mt-1 w-full min-w-[10rem] rounded-lg border border-slate-200 bg-white text-slate-900 shadow-lg py-1 max-h-64 overflow-auto"
     >
       {children}
     </div>
@@ -112,9 +112,9 @@ export function SelectItem({ value, children }) {
         setOpen(false);
       }}
       className={cn(
-        "cursor-pointer px-3 py-2 text-sm text-slate-200 transition-colors",
-        "hover:bg-white/10 hover:text-white",
-        selected === value && "bg-white/15 text-white font-medium"
+        "cursor-pointer px-3 py-2 text-sm text-slate-700 transition-colors",
+        "hover:bg-slate-100 hover:text-slate-900",
+        selected === value && "bg-slate-100 text-slate-900 font-medium"
       )}
     >
       {children}
