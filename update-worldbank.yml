@@ -1,0 +1,35 @@
+name: Update World Bank data
+
+# 每月 5 號 UTC 02:00 自動執行，也可以在 Actions 頁面手動按 Run workflow
+on:
+  schedule:
+    - cron: "0 2 5 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 抓取世界銀行資料
+        run: node scripts/fetch-worldbank.mjs
+
+      - name: 有變動就 commit
+        run: |
+          if git diff --quiet -- src/worldbank.js; then
+            echo "資料無變動，不建立 commit。"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/worldbank.js
+          git commit -m "chore: 更新世界銀行資料 ($(date -u +%Y-%m-%d))"
+          git push
