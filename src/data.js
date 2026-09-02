@@ -127,14 +127,14 @@ const yearOfLabel = (label) => {
   const m = String(label).match(/(19|20)\d{2}/);
   return m ? Number(m[0]) : null;
 };
- 
+
 // 這組資料是不是純年度序列？（月度「2025-08」、季度「2025Q3」、
 // 結構拆分「收入 Rev」都不算，不與世銀年度資料合併）
 const isAnnualSeries = (data) =>
   Array.isArray(data) &&
   data.length > 0 &&
   data.every((d) => /^(19|20)\d{2}$/.test(String(d.p).trim()));
- 
+
 /**
  * 合併官方值與世銀估算。
  * 規則：重疊年度一律以官方值為準，世銀只補官方沒有的較早年度。
@@ -145,13 +145,7 @@ function mergeWithWorldBank(id, officialData) {
   if (!wb || !wb.data?.length) {
     return { data: officialData, merged: false };
   }
- 
-  // 單位與官方不同（例如官方用兆元、世銀用 % 或美元）→ 不可併入同一張圖，
-  // 否則會出現量級斷崖。保留官方值，世銀序列另存在 wbMeta 供 UI 另行呈現。
-  if (wb.mergeable === false && officialData?.length) {
-    return { data: officialData, merged: false, wbAvailable: true, wbMeta: wb };
-  }
- 
+
   // 官方沒有任何序列 → 直接用世銀的
   if (!officialData?.length) {
     return {
@@ -161,34 +155,34 @@ function mergeWithWorldBank(id, officialData) {
       wbMeta: wb,
     };
   }
- 
+
   // 官方是月度／季度／結構拆分 → 不合併，避免口徑混雜
   if (!isAnnualSeries(officialData)) {
     return { data: officialData, merged: false, wbAvailable: true, wbMeta: wb };
   }
- 
+
   const officialYears = new Set(officialData.map((d) => yearOfLabel(d.p)));
   const filler = wb.data
     .filter((d) => !officialYears.has(yearOfLabel(d.p)))
     .map((d) => ({ ...d, src: "wb" }));
- 
+
   if (!filler.length) {
     return { data: officialData, merged: false, wbAvailable: true, wbMeta: wb };
   }
- 
+
   const combined = [
     ...filler,
     ...officialData.map((d) => ({ ...d, src: "official" })),
   ].sort((a, b) => yearOfLabel(a.p) - yearOfLabel(b.p));
- 
+
   return { data: combined, merged: true, wbMeta: wb };
 }
- 
+
 export const indicators = names.map((n, i) => {
   const id = i + 1;
   const v = V[id] || {};
   const m = mergeWithWorldBank(id, v.data);
- 
+
   return {
     id,
     zh: n[0],
@@ -203,15 +197,13 @@ export const indicators = names.map((n, i) => {
     wbMerged: !!m.merged,          // 圖表含世銀補充資料
     wbOnly: !!m.wbOnly,            // 完全來自世銀（無官方值）
     wbCaliber: !!m.wbMeta?.caliber, // 世銀口徑與官方定義不同
-    wbKind: m.wbMeta?.kind || null, // "series" 或 "cross-country"
-    wbUnavailableReason: m.wbAvailable && !m.merged ? "unit-or-frequency-mismatch" : null,
     wbMeta: m.wbMeta || null,
     status: V[id] ? "reference" : m.wbOnly ? "estimate" : "pending",
   };
 });
- 
+
 export const worldBankFetchedAt = wbFetchedAt;
- 
+
 // Flag a point-to-point change larger than 40% (or a jump from ~0).
 export const hasAnomaly = (data) => {
   if (!data || data.length < 2) return false;
