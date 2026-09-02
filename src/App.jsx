@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, ExternalLink, Languages, BarChart3, Database, X, Info, Filter,
-  Download, AlertTriangle, RefreshCw, CalendarClock, History,
+  Download, AlertTriangle, RefreshCw, CalendarClock, History, Globe,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -247,6 +247,7 @@ export default function App() {
                 <SelectContent>
                   <SelectItem value="all">{t("全部狀態", "All status", "全ステータス")}</SelectItem>
                   <SelectItem value="reference">{t("已有參考值", "Reference value", "参考値あり")}</SelectItem>
+                  <SelectItem value="estimate">{t("國際機構估算", "Intl. estimate", "国際機関推計")}</SelectItem>
                   <SelectItem value="pending">{t("待驗證", "Pending", "検証待ち")}</SelectItem>
                   <SelectItem value="anomaly">{t("⚠ 異常波動", "⚠ Anomaly", "⚠ 異常変動")}</SelectItem>
                 </SelectContent>
@@ -294,6 +295,7 @@ export default function App() {
           <p className="text-sm text-slate-500">{t(`顯示 ${filtered.length} / 50 項`, `Showing ${filtered.length} / 50`, `表示 ${filtered.length} / 50`)}</p>
           <div className="flex gap-3 text-xs flex-wrap">
             <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-emerald-500" />{t("已有參考值", "Reference", "参考値")}</span>
+            <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-sky-500" />{t("國際機構估算", "Intl. estimate", "国際機関推計")}</span>
             <span className="flex items-center gap-1"><i className="w-2 h-2 rounded-full bg-slate-300" />{t("待驗證", "Pending", "検証待ち")}</span>
             <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="w-3 h-3" />{t("異常波動警示", "Anomaly alert", "異常変動警告")}</span>
           </div>
@@ -314,7 +316,7 @@ export default function App() {
                         <span className="text-xs text-slate-500">{t(item.category.zh, item.category.en, item.category.ja)}</span>
                         <span className="text-[10px] rounded-md px-1.5 py-0.5 bg-slate-100 text-slate-500 flex items-center gap-1"><CalendarClock className="w-3 h-3" />{t(freqMeta[item.freq].zh, freqMeta[item.freq].en, freqMeta[item.freq].ja)}</span>
                       </div>
-                      {anom ? <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" /> : <span className={`w-2.5 h-2.5 rounded-full mt-1 ${item.status === "reference" ? "bg-emerald-500" : "bg-slate-300"}`} />}
+                      {anom ? <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" /> : <span className={`w-2.5 h-2.5 rounded-full mt-1 ${item.status === "reference" ? "bg-emerald-500" : item.status === "estimate" ? "bg-sky-500" : "bg-slate-300"}`} />}
                     </div>
                     <h2 className="font-semibold text-base mt-4 leading-snug min-h-12">{nm(item)}</h2>
                     <p className="text-xs text-slate-400 mt-1 line-clamp-1">{lang === "zh" ? item.en : item.zh}</p>
@@ -323,6 +325,15 @@ export default function App() {
                       <div className="mt-2 text-[10px] text-slate-400 flex items-center gap-1">
                         <History className="w-3 h-3" />
                         {t("資料涵蓋", "Data covers", "データ範囲")} {cov.from}–{cov.to}
+                      </div>
+                    )}
+                    {(item.wbOnly || item.wbMerged) && (
+                      <div className="mt-1 text-[10px] text-sky-600 flex items-center gap-1">
+                        <Globe className="w-3 h-3 shrink-0" />
+                        {item.wbOnly
+                          ? t("資料來自世界銀行", "Data from World Bank", "世界銀行データ")
+                          : t("早期年度由世界銀行補充", "Earlier years from World Bank", "過去年度は世界銀行で補完")}
+                        {item.wbMeta?.origin ? ` · ${item.wbMeta.origin}` : ""}
                       </div>
                     )}
                     {anom && (
@@ -434,6 +445,23 @@ export default function App() {
                 </div>
                 <div className="mt-6 rounded-2xl border p-4">
                   <div className="text-xs text-slate-500 mb-2">{t("消息來源與資料連結", "Source and data link", "出典・データリンク")}</div>
+                  {(selected.wbOnly || selected.wbMerged) && (
+                    <div className="mb-3 rounded-lg bg-sky-50 border border-sky-200 px-3 py-2 text-[11px] leading-relaxed text-sky-900 flex gap-1.5">
+                      <Globe className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>
+                          {selected.wbOnly
+                            ? t("國際機構估算：", "International estimate: ", "国際機関推計：")
+                            : t("含世界銀行補充資料：", "Includes World Bank data: ", "世界銀行データを含む：")}
+                        </strong>
+                        {selected.wbOnly
+                          ? t("本項中國官方未公布可驗證數值，圖表資料取自世界銀行。", "No verifiable official Chinese figure; chart data comes from the World Bank.", "中国公式の検証可能値がないため、世界銀行データを使用。")
+                          : t("較早年度由世界銀行補足，與官方值重疊的年度一律採用官方值。", "Earlier years filled from the World Bank; official values take priority where they overlap.", "過去年度は世界銀行で補完。重複年度は公式値を優先。")}
+                        {selected.wbMeta?.origin && ` ${t("原始來源", "Originally from", "原典")}：${selected.wbMeta.origin}。`}
+                        {selected.wbCaliber && t(" ⚠️口徑與中國官方定義不同，不可直接比較。", " ⚠️Caliber differs from the official definition; not directly comparable.", " ⚠️定義が中国公式と異なるため直接比較は不可。")}
+                      </span>
+                    </div>
+                  )}
                   {selected.url ? (
                     <a href={selected.url} target="_blank" rel="noreferrer" className="text-blue-700 font-medium flex items-center gap-2 hover:underline">{selected.source}<ExternalLink className="w-4 h-4" /></a>
                   ) : (
