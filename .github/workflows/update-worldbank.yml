@@ -24,12 +24,18 @@ jobs:
 
       - name: 有變動就 commit
         run: |
-          if git diff --quiet -- src/worldbank.js; then
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 先 add，未追蹤的新檔案才會被 git 看見
+          # （git diff 看不到 untracked files，這是第一版的 bug）
+          git add src/worldbank.js
+
+          if git diff --cached --quiet; then
             echo "資料無變動，不建立 commit。"
             exit 0
           fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/worldbank.js
+
           git commit -m "chore: 更新世界銀行資料 ($(date -u +%Y-%m-%d))"
           git push
+          echo "已推送更新。"
