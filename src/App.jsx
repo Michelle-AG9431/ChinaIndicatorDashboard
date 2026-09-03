@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, ExternalLink, Languages, BarChart3, Database, X, Info, Filter,
   Download, AlertTriangle, RefreshCw, CalendarClock, History, Globe,
+  SlidersHorizontal, ChevronDown, RotateCcw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,7 @@ export default function App() {
   const [cat, setCat] = useState("all");
   const [status, setStatus] = useState("all");
   const [years, setYears] = useState(5);
+  const [filtersOpen, setFiltersOpen] = useState(false); // 手機版篩選面板
   const [selected, setSelected] = useState(null);
   const [refreshed, setRefreshed] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -163,6 +165,17 @@ export default function App() {
     }
     setRefreshed({ time: new Date().toLocaleString(), ok });
     setRefreshing(false);
+  };
+
+  // 手機版：顯示目前套用了幾個非預設篩選條件
+  const activeFilterCount =
+    (cat !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (years !== 5 ? 1 : 0);
+
+  const resetFilters = () => {
+    setCat("all");
+    setStatus("all");
+    setYears(5);
+    setSearch("");
   };
 
   const exportCsv = () => {
@@ -226,22 +239,103 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-5 py-7">
+        {/* ---------- 篩選列 ----------
+            手機（< md）：搜尋框 + 右上角篩選鈕，點開才展開下拉選單
+            桌機（≥ md）：全部並排顯示                                      */}
         <Card className="border-0 shadow-sm mb-6">
           <CardContent className="p-4">
-            <div className="grid md:grid-cols-[1fr_170px_180px_160px_auto] gap-3">
+            {/* 第一列：搜尋 + 手機版篩選鈕 */}
+            <div className="flex gap-2 md:hidden">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("搜尋編號或指標", "Search", "検索")}
+                  className="pl-9"
+                />
+              </div>
+              <button
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                aria-expanded={filtersOpen}
+                className="relative shrink-0 h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 flex items-center gap-1.5 text-sm font-medium active:bg-slate-50 transition-colors"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* 手機版展開面板 */}
+            <AnimatePresence initial={false}>
+              {filtersOpen && (
+                <motion.div
+                  key="mobile-filters"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="md:hidden overflow-hidden"
+                >
+                  <div className="pt-3 space-y-2">
+                    <Select value={cat} onValueChange={setCat}>
+                      <SelectTrigger><Filter className="w-4 h-4 mr-2 shrink-0" /><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("全部面向", "All dimensions", "全分野")}</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem value={c.id} key={c.id}>{t(c.zh, c.en, c.ja)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("全部狀態", "All status", "全ステータス")}</SelectItem>
+                        <SelectItem value="reference">{t("已有參考值", "Reference value", "参考値あり")}</SelectItem>
+                        <SelectItem value="estimate">{t("國際機構估算", "Intl. estimate", "国際機関推計")}</SelectItem>
+                        <SelectItem value="pending">{t("待驗證", "Pending", "検証待ち")}</SelectItem>
+                        <SelectItem value="anomaly">{t("⚠ 異常波動", "⚠ Anomaly", "⚠ 異常変動")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={String(years)} onValueChange={(v) => setYears(v === "all" ? "all" : Number(v))}>
+                      <SelectTrigger><History className="w-4 h-4 mr-2 shrink-0" /><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">{t("近 5 年", "Last 5 years", "直近 5 年")}</SelectItem>
+                        <SelectItem value="10">{t("近 10 年", "Last 10 years", "直近 10 年")}</SelectItem>
+                        <SelectItem value="15">{t("近 15 年", "Last 15 years", "直近 15 年")}</SelectItem>
+                        <SelectItem value="20">{t("近 20 年", "Last 20 years", "直近 20 年")}</SelectItem>
+                        <SelectItem value="all">{t("全部期間", "All periods", "全期間")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button onClick={exportCsv} variant="outline" className="flex-1">
+                        <Download className="w-4 h-4 mr-2" />CSV
+                      </Button>
+                      {activeFilterCount > 0 && (
+                        <Button onClick={resetFilters} variant="ghost" className="shrink-0">
+                          <RotateCcw className="w-4 h-4 mr-1.5" />{t("清除", "Reset", "リセット")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* 桌機版：搜尋 + 狀態 + 期間 + CSV 並排。
+                不放分類選單 —— 分類由下方五個大按鈕負責，避免同一功能有兩個入口 */}
+            <div className="hidden md:grid md:grid-cols-[1fr_190px_170px_auto] gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("搜尋編號或指標", "Search number or indicator", "番号・指標を検索")} className="pl-9" />
               </div>
-              <Select value={cat} onValueChange={setCat}>
-                <SelectTrigger><Filter className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("全部面向", "All dimensions", "全分野")}</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem value={c.id} key={c.id}>{t(c.zh, c.en, c.ja)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -253,7 +347,7 @@ export default function App() {
                 </SelectContent>
               </Select>
               <Select value={String(years)} onValueChange={(v) => setYears(v === "all" ? "all" : Number(v))}>
-                <SelectTrigger><History className="w-4 h-4 mr-2" /><SelectValue /></SelectTrigger>
+                <SelectTrigger><History className="w-4 h-4 mr-2 shrink-0" /><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="5">{t("近 5 年", "Last 5 years", "直近 5 年")}</SelectItem>
                   <SelectItem value="10">{t("近 10 年", "Last 10 years", "直近 10 年")}</SelectItem>
@@ -280,7 +374,8 @@ export default function App() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-7">
+        {/* 分類大按鈕：僅桌機顯示。手機版改用篩選面板裡的分類選單 */}
+        <div className="hidden md:grid md:grid-cols-5 gap-3 mb-7">
           {categories.map((c) => (
             <button key={c.id} onClick={() => setCat(cat === c.id ? "all" : c.id)}
               className={`text-left rounded-2xl p-4 bg-white border transition shadow-sm ${cat === c.id ? "ring-2 ring-offset-2" : "hover:-translate-y-0.5"}`}
