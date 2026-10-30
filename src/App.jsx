@@ -1,3 +1,4 @@
+import AnalysisPanel from "./AnalysisPanel.jsx";
 import React, { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -535,6 +536,7 @@ export default function App() {
                     </Card>
                   </div>
                 </div>
+                <AnalysisPanel item={selected} lang={lang} />
                 <div className="mt-6 rounded-2xl border p-4">
                   <div className="text-xs text-slate-500 mb-2">{t("消息來源與資料連結", "Source and data link", "出典・データリンク")}</div>
                   {(selected.wbOnly || selected.wbMerged) && (
