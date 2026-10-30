@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, ExternalLink, Languages, BarChart3, Database, X, Info, Filter,
   Download, AlertTriangle, RefreshCw, CalendarClock, History, Globe,
-  SlidersHorizontal, ChevronDown, RotateCcw,
+  SlidersHorizontal, ChevronDown, RotateCcw, Check,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,49 @@ function sliceByYears(item, years) {
 }
 
 // --------------------------------------------------------------------------
+
+// 抽屜內的一組單選選項。直接列出所有選項，不使用下拉浮層，
+// 以免在可捲動的抽屜裡被裁切或誤觸。
+function FilterGroup({ title, options, value, onChange }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        {title}
+      </h3>
+      <div className="space-y-1">
+        {options.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onChange(opt.value)}
+              aria-pressed={active}
+              className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-left transition-colors ${
+                active
+                  ? "bg-slate-900 text-white font-medium"
+                  : "text-slate-700 active:bg-slate-100"
+              }`}
+            >
+              {opt.color && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: opt.color }}
+                />
+              )}
+              <span className="flex-1 truncate">{opt.label}</span>
+              {opt.hint && (
+                <span className={`text-xs tabular-nums ${active ? "text-slate-300" : "text-slate-400"}`}>
+                  {opt.hint}
+                </span>
+              )}
+              {active && <Check className="w-4 h-4 shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function MiniChart({ item, big = false, years = "all" }) {
   const data = sliceByYears(item, years);
@@ -171,6 +214,19 @@ export default function App() {
   const activeFilterCount =
     (cat !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (years !== 5 ? 1 : 0);
 
+  // 抽屜開啟時鎖住背景捲動，避免手指滑到後面的頁面
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onEsc = (e) => e.key === "Escape" && setFiltersOpen(false);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [filtersOpen]);
+
   const resetFilters = () => {
     setCat("all");
     setStatus("all");
@@ -269,65 +325,6 @@ export default function App() {
                 )}
               </button>
             </div>
-
-            {/* 手機版展開面板 */}
-            <AnimatePresence initial={false}>
-              {filtersOpen && (
-                <motion.div
-                  key="mobile-filters"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="md:hidden overflow-hidden"
-                >
-                  <div className="pt-3 space-y-2">
-                    <Select value={cat} onValueChange={setCat}>
-                      <SelectTrigger><Filter className="w-4 h-4 mr-2 shrink-0" /><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("全部面向", "All dimensions", "全分野")}</SelectItem>
-                        {categories.map((c) => (
-                          <SelectItem value={c.id} key={c.id}>{t(c.zh, c.en, c.ja)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={status} onValueChange={setStatus}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("全部狀態", "All status", "全ステータス")}</SelectItem>
-                        <SelectItem value="reference">{t("已有參考值", "Reference value", "参考値あり")}</SelectItem>
-                        <SelectItem value="estimate">{t("國際機構估算", "Intl. estimate", "国際機関推計")}</SelectItem>
-                        <SelectItem value="pending">{t("待驗證", "Pending", "検証待ち")}</SelectItem>
-                        <SelectItem value="anomaly">{t("⚠ 異常波動", "⚠ Anomaly", "⚠ 異常変動")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={String(years)} onValueChange={(v) => setYears(v === "all" ? "all" : Number(v))}>
-                      <SelectTrigger><History className="w-4 h-4 mr-2 shrink-0" /><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">{t("近 5 年", "Last 5 years", "直近 5 年")}</SelectItem>
-                        <SelectItem value="10">{t("近 10 年", "Last 10 years", "直近 10 年")}</SelectItem>
-                        <SelectItem value="15">{t("近 15 年", "Last 15 years", "直近 15 年")}</SelectItem>
-                        <SelectItem value="20">{t("近 20 年", "Last 20 years", "直近 20 年")}</SelectItem>
-                        <SelectItem value="all">{t("全部期間", "All periods", "全期間")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <div className="flex gap-2 pt-1">
-                      <Button onClick={exportCsv} variant="outline" className="flex-1">
-                        <Download className="w-4 h-4 mr-2" />CSV
-                      </Button>
-                      {activeFilterCount > 0 && (
-                        <Button onClick={resetFilters} variant="ghost" className="shrink-0">
-                          <RotateCcw className="w-4 h-4 mr-1.5" />{t("清除", "Reset", "リセット")}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* 桌機版：搜尋 + 狀態 + 期間 + CSV 並排。
                 不放分類選單 —— 分類由下方五個大按鈕負責，避免同一功能有兩個入口 */}
@@ -568,6 +565,117 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ---------- 手機版篩選抽屜 ----------
+          從右側滑入，覆蓋主畫面。選項直接列出而非巢狀下拉，
+          避免在抽屜內再開浮層造成裁切與誤觸。                        */}
+      <AnimatePresence>
+        {filtersOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] md:hidden"
+            onClick={() => setFiltersOpen(false)}
+          >
+            <div className="absolute inset-0 bg-slate-950/50" />
+
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "tween", duration: 0.22, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("篩選條件", "Filters", "絞り込み")}
+              className="absolute right-0 top-0 h-full w-[86%] max-w-sm bg-white shadow-2xl flex flex-col"
+            >
+              {/* 抽屜標頭 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+                  <h2 className="font-semibold">{t("篩選條件", "Filters", "絞り込み")}</h2>
+                  {activeFilterCount > 0 && (
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setFiltersOpen(false)}
+                  aria-label={t("關閉", "Close", "閉じる")}
+                  className="w-9 h-9 -mr-2 rounded-lg flex items-center justify-center text-slate-500 active:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 可捲動的選項區 */}
+              <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-6">
+                <FilterGroup
+                  title={t("面向", "Dimension", "分野")}
+                  options={[
+                    { value: "all", label: t("全部面向", "All dimensions", "全分野") },
+                    ...categories.map((c) => ({
+                      value: c.id,
+                      label: t(c.zh, c.en, c.ja),
+                      color: c.color,
+                      hint: `${c.range[1] - c.range[0] + 1}`,
+                    })),
+                  ]}
+                  value={cat}
+                  onChange={setCat}
+                />
+
+                <FilterGroup
+                  title={t("狀態", "Status", "ステータス")}
+                  options={[
+                    { value: "all", label: t("全部狀態", "All status", "全ステータス") },
+                    { value: "reference", label: t("已有參考值", "Reference value", "参考値あり"), color: "#10b981" },
+                    { value: "estimate", label: t("國際機構估算", "Intl. estimate", "国際機関推計"), color: "#0ea5e9" },
+                    { value: "pending", label: t("待驗證", "Pending", "検証待ち"), color: "#cbd5e1" },
+                    { value: "anomaly", label: t("⚠ 異常波動", "⚠ Anomaly", "⚠ 異常変動"), color: "#f59e0b" },
+                  ]}
+                  value={status}
+                  onChange={setStatus}
+                />
+
+                <FilterGroup
+                  title={t("顯示期間", "Time range", "表示期間")}
+                  options={[
+                    { value: "5", label: t("近 5 年", "Last 5 years", "直近 5 年") },
+                    { value: "10", label: t("近 10 年", "Last 10 years", "直近 10 年") },
+                    { value: "15", label: t("近 15 年", "Last 15 years", "直近 15 年") },
+                    { value: "20", label: t("近 20 年", "Last 20 years", "直近 20 年") },
+                    { value: "all", label: t("全部期間", "All periods", "全期間") },
+                  ]}
+                  value={String(years)}
+                  onChange={(v) => setYears(v === "all" ? "all" : Number(v))}
+                />
+              </div>
+
+              {/* 抽屜底部操作 */}
+              <div className="border-t border-slate-200 px-5 py-3 shrink-0 space-y-2">
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv} variant="outline" className="flex-1">
+                    <Download className="w-4 h-4 mr-2" />CSV
+                  </Button>
+                  {activeFilterCount > 0 && (
+                    <Button onClick={resetFilters} variant="ghost" className="shrink-0">
+                      <RotateCcw className="w-4 h-4 mr-1.5" />{t("清除", "Reset", "リセット")}
+                    </Button>
+                  )}
+                </div>
+                <Button onClick={() => setFiltersOpen(false)} className="w-full">
+                  {t(`顯示 ${filtered.length} 項結果`, `Show ${filtered.length} results`, `${filtered.length} 件を表示`)}
+                </Button>
+              </div>
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
